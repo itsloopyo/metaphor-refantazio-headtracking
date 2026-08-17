@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "mod_info": {
+    "name": "MetaphorHeadTracking",
+    "version": "0.0.0",
+    "game_id": "metaphor"
+  },
+  "strategy": "AsiLoader",
+  "delivery_mode": "manifest",
+  "files": [
+    { "source": "vendor/ultimate-asi-loader/dinput8.dll", "target": "winmm.dll" },
+    { "source": "plugins/MetaphorHeadTracking.asi", "target": "MetaphorHeadTracking.asi" }
+  ],
+  "runtime_requirements": [],
+  "dependencies": []
+}

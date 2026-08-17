@@ -1,0 +1,29 @@
+[workspace]
+name = "metaphor-refantazio-headtracking"
+version = "0.0.0"
+description = "Head tracking mod for Metaphor: ReFantazio (OpenTrack, C++ ASI plugin)"
+channels = ["conda-forge"]
+platforms = ["win-64"]
+
+[tasks]
+sync = "git submodule update --remote cameraunlock-core"
+configure = "cmake -S . -B build -G \"Visual Studio 18 2026\" -A x64"
+build = { cmd = "cmake --build build --config Release", depends-on = ["configure"] }
+clean = "cmake -E rm -rf build build-tests release"
+rebuild = { depends-on = ["clean", "build"] }
+
+configure-tests = "cmake -S . -B build-tests -G \"Visual Studio 18 2026\" -A x64 -DMETAPHOR_BUILD_TESTS=ON"
+build-tests = { cmd = "cmake --build build-tests --config Release", depends-on = ["configure-tests"] }
+test = { cmd = "ctest --test-dir build-tests -C Release --output-on-failure", depends-on = ["build-tests"] }
+
+package = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/package-release.ps1", depends-on = ["build"] }
+deploy = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1", depends-on = ["build"] }
+
+install = { cmd = "release/artifact-contents/install.cmd", depends-on = ["package"] }
+uninstall = { cmd = "release/artifact-contents/uninstall.cmd", depends-on = ["package"] }
+
+update-deps = "powershell -ExecutionPolicy Bypass -File scripts/update-deps.ps1"
+release = "powershell -ExecutionPolicy Bypass -File scripts/release.ps1"
+
+[dependencies]
+cmake = ">=3.28"
