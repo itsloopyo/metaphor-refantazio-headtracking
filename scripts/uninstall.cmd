@@ -25,7 +25,7 @@
 :: --- CONFIG BLOCK ---
 set "GAME_ID=metaphor"
 set "MOD_DISPLAY_NAME=Metaphor: ReFantazio Head Tracking"
-set "MOD_DLLS=MetaphorHeadTracking.asi"
+set "MOD_DLLS=MetaphorHeadTracking.asi MetaphorHeadTracking.log MetaphorHeadTracking.prev.log"
 set "MOD_INTERNAL_NAME=MetaphorHeadTracking"
 set "STATE_FILE=.headtracking-state.json"
 set "FRAMEWORK_TYPE=ASILoader"

@@ -69,7 +69,6 @@ Two equivalent binding sets - use whichever your keyboard has:
 
 | Action              | Nav-cluster | Chord           |
 |---------------------|-------------|-----------------|
-| Recenter            | `Home`      | `Ctrl+Shift+T`  |
 | Toggle tracking     | `End`       | `Ctrl+Shift+Y`  |
 | Cycle tracking mode | `Page Up`   | `Ctrl+Shift+G`  |
 | Toggle yaw mode     | `Page Down` | `Ctrl+Shift+H`  |
@@ -141,7 +140,7 @@ The mod writes `MetaphorHeadTracking.log` next to `METAPHOR.exe` on every launch
 **No tracking response**
 - Confirm OpenTrack (or your phone app) is sending UDP to `127.0.0.1:4242` and is actively tracking.
 - If the tracker runs on a phone, use your PC's LAN IP as the destination and check Windows Firewall allows inbound UDP on port 4242.
-- Press `Home` (or `Ctrl+Shift+T`) to recenter, and `End` (or `Ctrl+Shift+Y`) to confirm tracking is enabled.
+- Press `End` (or `Ctrl+Shift+Y`) to confirm tracking is enabled. If the view sits off-centre, centre it in your tracker app (opentrack's Center bind, the CENTER button in Headcam).
 
 **Jittery / unstable tracking**
 - Raise the smoothing value your tracker uses toward 1.0: `[Smoothing] RemoteSmoothing` for a phone or other device on the network, `[Smoothing] LocalSmoothing` for a tracker running on this PC.

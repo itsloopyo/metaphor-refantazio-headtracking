@@ -49,12 +49,10 @@ std::atomic<bool> g_enabled{true};
 bool g_initialized = false;
 
 // Nav-cluster virtual key codes.
-constexpr int kVkHome = 0x24;      // recenter
 constexpr int kVkEnd = 0x23;       // toggle tracking
 constexpr int kVkPageUp = 0x21;    // cycle tracking mode
 constexpr int kVkPageDown = 0x22;  // toggle yaw mode
-// Ctrl+Shift chord letters (T/Y/G/H cluster).
-constexpr int kVkT = 0x54;
+// Ctrl+Shift chord letters, drawn from the T/Y/U/G/H/J cluster.
 constexpr int kVkY = 0x59;
 constexpr int kVkG = 0x47;
 constexpr int kVkH = 0x48;
@@ -227,6 +225,19 @@ void OnPresentFrame() {
     float yaw, pitch, roll;
     if (g_session.GetRotation(yaw, pitch, roll)) {
         g_camera.ApplyHeadRotation(yaw, pitch, roll);
+        // Latched, and emitted after the apply so it means what it says. The
+        // receiver's own "First UDP packet received" line already proves packets
+        // arrived; this one proves a processed pose got as far as the camera
+        // hook, which is the other half of the first fork in a no-tracking
+        // report (enabled state and session gating sit between the two).
+        static bool loggedFirstPose = false;
+        if (!loggedFirstPose) {
+            loggedFirstPose = true;
+            cameraunlock::logging::Line(
+                "[udp] first tracker pose handed to the camera hook: "
+                "yaw=%.1f pitch=%.1f roll=%.1f (%s sender)",
+                yaw, pitch, roll, g_session.IsRemoteConnection() ? "remote" : "local");
+        }
         float px, py, pz;
         if (g_session.GetPositionOffset(px, py, pz)) {
             g_camera.ApplyHeadPosition(px, py, pz);
@@ -249,7 +260,6 @@ void CycleTrackingMode() {
 }
 
 void SetupHotkeys(int yawModeKey) {
-    auto recenter = [] { g_session.Recenter(); cameraunlock::logging::Line("[hotkey] recenter"); };
     auto toggle = [] {
         bool now = !g_enabled.load(std::memory_order_relaxed);
         g_enabled.store(now, std::memory_order_relaxed);
@@ -259,13 +269,11 @@ void SetupHotkeys(int yawModeKey) {
     auto toggleYaw = [] { g_camera.ToggleYawMode(); };
 
     // Nav cluster (guarded so the chord path is the sole Ctrl+Shift trigger).
-    g_hotkeys.AddHotkey(kVkHome, NavGuarded(recenter));
     g_hotkeys.AddHotkey(kVkEnd, NavGuarded(toggle));
     g_hotkeys.AddHotkey(kVkPageUp, NavGuarded(cycleMode));
     g_hotkeys.AddHotkey(yawModeKey, NavGuarded(toggleYaw));
 
     // Ctrl+Shift chord alternatives.
-    g_hotkeys.AddHotkey(kVkT, ChordGuarded(recenter));
     g_hotkeys.AddHotkey(kVkY, ChordGuarded(toggle));
     g_hotkeys.AddHotkey(kVkG, ChordGuarded(cycleMode));
     g_hotkeys.AddHotkey(kVkH, ChordGuarded(toggleYaw));
@@ -351,7 +359,7 @@ void ModMain() {
     g_camera.SetWorldSpaceYaw(cfg.worldSpaceYaw);
 
     SetupHotkeys(cfg.yawModeKey);
-    cameraunlock::logging::Line("[init] hotkeys registered (Home/End/PgUp/PgDn + Ctrl+Shift T/Y/G/H)");
+    cameraunlock::logging::Line("[init] hotkeys registered (End/PgUp/PgDn + Ctrl+Shift Y/G/H)");
 
     if (InstallPresentHook(&OnPresentFrame)) {
         cameraunlock::logging::Line("[init] present hook live; per-frame tick running");
