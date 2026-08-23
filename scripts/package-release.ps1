@@ -89,9 +89,9 @@ Compress-Archive -Path (Join-Path $StageDir '*') -DestinationPath $ZipPath -Forc
 Write-Host "Installer ZIP created:" -ForegroundColor Green
 Write-Host "  $ZipPath"
 
-# Nexus ZIP: extract-to-game-folder. Only the deploy subtree (the .asi that
-# lands beside the game exe). Nexus users manage their own ASI loader, so no
-# vendored loader, no scripts, no docs.
+# Nexus ZIP: extract-to-game-folder. The deploy subtree (the .asi that lands
+# beside the game exe) plus the notice files below. Nexus users manage their own
+# ASI loader, so no vendored loader and no install scripts.
 $NexusStage = Join-Path $ReleaseDir 'nexus-contents'
 if (Test-Path -LiteralPath $NexusStage) {
     Remove-Item -LiteralPath $NexusStage -Recurse -Force
@@ -102,6 +102,17 @@ Copy-Item -LiteralPath $AsiSource -Destination (Join-Path $NexusStage 'MetaphorH
 $NexusZip = Join-Path $ReleaseDir "MetaphorHeadTracking-v$version-nexus.zip"
 if (Test-Path -LiteralPath $NexusZip) {
     Remove-Item -LiteralPath $NexusZip -Force
+}
+# The Nexus ZIP is a binary distribution too: the licences of everything
+# compiled into or bundled with the payload require their notices to travel
+# with it, so LICENSE and THIRD-PARTY-NOTICES.md ship at its root.
+foreach ($noticeDoc in @('LICENSE', 'THIRD-PARTY-NOTICES.md', 'README.md')) {
+    $noticeSrc = Join-Path $RepoRoot $noticeDoc
+    if (-not (Test-Path $noticeSrc)) {
+        throw "Required notice file not found: $noticeDoc. Every published ZIP is a binary distribution and must carry it."
+    }
+    Copy-Item $noticeSrc -Destination $NexusStage -Force
+    Write-Host "  $noticeDoc" -ForegroundColor Green
 }
 Compress-Archive -Path (Join-Path $NexusStage '*') -DestinationPath $NexusZip -Force
 

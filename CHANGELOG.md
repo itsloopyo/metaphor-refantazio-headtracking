@@ -12,6 +12,12 @@ based on Keep a Changelog, and this project adheres to Semantic Versioning.
   pose that reached the camera hook without moving the view.
 
 ### Changed
+- Every published ZIP, the Nexus one included, now carries `LICENSE` and a
+  `THIRD-PARTY-NOTICES.md` that reproduces the full licence text of each
+  bundled and statically linked component: Ultimate ASI Loader (MIT), MinHook
+  (BSD-2-Clause, including the separate Hacker Disassembler Engine copyright)
+  and cameraunlock-core (MIT). Naming a licence is not reproducing it, and both
+  of those require the notice and disclaimer to travel with the binary.
 - Removed recentring from the mod, including the `Home` / `Ctrl+Shift+T`
   hotkey. The tracker app owns the centre, so the mod keeping one of its own put
   a second centre in series with the tracker's and the two drifted apart. Centre

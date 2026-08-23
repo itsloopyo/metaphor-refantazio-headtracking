@@ -57,9 +57,7 @@ constexpr int kVkY = 0x59;
 constexpr int kVkG = 0x47;
 constexpr int kVkH = 0x48;
 constexpr int kVkU = 0x55;
-constexpr int kVkJ = 0x4A;
 constexpr int kVkInsert = 0x2D;  // restart discovery (discovery mode only)
-constexpr int kVkDelete = 0x2E;  // dump decrypted module image
 
 struct Config {
     uint16_t port = 4242;
