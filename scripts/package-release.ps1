@@ -12,7 +12,10 @@
 $ErrorActionPreference = 'Stop'
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
+$CoreRoot = Join-Path $RepoRoot 'cameraunlock-core'
 $ManifestPath = Join-Path $RepoRoot 'launcher-manifest.json'
+
+Import-Module (Join-Path $CoreRoot 'powershell\ReleaseWorkflow.psm1') -Force
 
 $manifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
 $version = $manifest.mod_info.version
@@ -55,9 +58,7 @@ function Copy-Into {
 # call (shared\find-game.ps1 + its module + games.json) must ship alongside them.
 Copy-Into 'scripts\install.cmd'              'install.cmd'
 Copy-Into 'scripts\uninstall.cmd'            'uninstall.cmd'
-Copy-Into 'scripts\shared\find-game.ps1'         'shared\find-game.ps1'
-Copy-Into 'scripts\shared\GamePathDetection.psm1' 'shared\GamePathDetection.psm1'
-Copy-Into 'scripts\shared\games.json'            'shared\games.json'
+Copy-SharedBundle -StagingDir $StageDir -CoreRoot $CoreRoot
 
 # Compiled plugin (manifest source path: plugins/MetaphorHeadTracking.asi)
 $pluginDst = Join-Path $StageDir 'plugins\MetaphorHeadTracking.asi'
