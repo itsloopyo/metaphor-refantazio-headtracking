@@ -66,4 +66,12 @@ if(METAPHOR_BUILD_TESTS)
     target_include_directories(packet_parser_tests PRIVATE cameraunlock-core/cpp/include)
     target_link_libraries(packet_parser_tests PRIVATE cameraunlock)
     add_test(NAME packet_parser_tests COMMAND packet_parser_tests)
+
+    add_executable(position_limits_tests tests/position_limits_tests.cpp)
+    target_include_directories(position_limits_tests PRIVATE
+        src/MetaphorHeadTracking
+        cameraunlock-core/cpp/include
+    )
+    target_link_libraries(position_limits_tests PRIVATE cameraunlock)
+    add_test(NAME position_limits_tests COMMAND position_limits_tests)
 endif()

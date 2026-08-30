@@ -8,6 +8,7 @@
 #include "build_profiles.h"
 #include "camera_hook.h"
 #include "exe_paths.h"
+#include "position_limits.h"
 #include "present_hook.h"
 #include "version.h"
 
@@ -319,10 +320,7 @@ void ModMain() {
         pos.sensitivity_x = cfg.positionSensX;
         pos.sensitivity_y = cfg.positionSensY;
         pos.sensitivity_z = cfg.positionSensZ;
-        pos.limit_x = cfg.positionLimit;
-        pos.limit_y = cfg.positionLimit;
-        pos.limit_z = cfg.positionLimit;
-        pos.limit_z_back = cfg.positionLimit;
+        ApplyPositionLimit(pos, cfg.positionLimit);
         pos.invert_x = cfg.positionInvertX;
         pos.invert_y = cfg.positionInvertY;
         pos.invert_z = cfg.positionInvertZ;
