@@ -49,6 +49,7 @@ Import-Module (Join-Path $ProjectRoot 'cameraunlock-core\powershell\ReleaseWorkf
 $ManifestPath = Join-Path $ProjectRoot 'launcher-manifest.json'
 $VersionHeader = Join-Path $ProjectRoot 'src\MetaphorHeadTracking\version.h'
 $CMakeLists = Join-Path $ProjectRoot 'CMakeLists.txt'
+$InstallCmdPath = Join-Path $ProjectRoot 'scripts\install.cmd'
 
 $manifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
 $currentVersion = $manifest.mod_info.version
@@ -86,7 +87,12 @@ if (Test-GitTagExists -Tag $tag) {
 Write-Host "Releasing $currentVersion -> $newVersion (tag $tag)" -ForegroundColor Cyan
 
 # 3. Update the canonical version source + the derived copies.
-Update-ManifestVersion -ManifestPath $ManifestPath -Version $newVersion -VersionProperty $null | Out-Null
+# mod_info.version is the only version key here, and Update-ManifestVersion
+# only reaches a top-level one. UTF-8 without a BOM: PowerShell 5.1's
+# -Encoding UTF8 prefixes EF BB BF, which the launcher's parser rejects.
+$manifest.mod_info.version = $newVersion
+[System.IO.File]::WriteAllText($ManifestPath, ($manifest | ConvertTo-Json -Depth 10),
+                               (New-Object System.Text.UTF8Encoding $false))
 
 $headerContent = Get-Content -LiteralPath $VersionHeader -Raw
 if ($headerContent -notmatch '#define METAPHOR_HT_VERSION "[^"]+"') {
@@ -101,6 +107,15 @@ if ($cmakeContent -notmatch 'project\(MetaphorHeadTracking VERSION \d+\.\d+\.\d+
 }
 $cmakeContent = $cmakeContent -replace '(project\(MetaphorHeadTracking VERSION )\d+\.\d+\.\d+', "`${1}$newVersion"
 Set-Content -LiteralPath $CMakeLists -Value $cmakeContent -NoNewline
+
+# install.cmd's MOD_VERSION is what the install writes into the launcher's
+# state file, which is where the launcher looks to spot a stale install.
+$installCmdContent = Get-Content -LiteralPath $InstallCmdPath -Raw
+if ($installCmdContent -notmatch 'set "MOD_VERSION=[^"]+"') {
+    throw "No MOD_VERSION line found in $InstallCmdPath"
+}
+$installCmdContent = $installCmdContent -replace 'set "MOD_VERSION=[^"]+"', "set `"MOD_VERSION=$newVersion`""
+Set-Content -LiteralPath $InstallCmdPath -Value $installCmdContent -NoNewline
 
 # 4. Release build. Abort on failure.
 Push-Location $ProjectRoot
@@ -122,6 +137,7 @@ $null = Invoke-VersionCommit -Version $newVersion -Files @(
     $ManifestPath,
     $VersionHeader,
     $CMakeLists,
+    $InstallCmdPath,
     (Join-Path $ProjectRoot 'CHANGELOG.md')
 )
 
