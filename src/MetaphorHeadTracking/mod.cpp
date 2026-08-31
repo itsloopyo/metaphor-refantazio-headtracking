@@ -18,6 +18,7 @@
 #include "cameraunlock/hooks/hook_manager.h"
 #include "cameraunlock/input/hotkey_poller.h"
 #include "cameraunlock/logging/file_log.h"
+#include "cameraunlock/math/smoothing_utils.h"
 #include "cameraunlock/memory/pe_fingerprint.h"
 #include "cameraunlock/protocol/udp_receiver.h"
 #include "cameraunlock/time/frame_clock.h"
@@ -66,8 +67,8 @@ struct Config {
     SensitivitySettings sensitivity;
     // Picked per connection from the packet's source address; both cover
     // rotation and position, and neither is floored.
-    float localSmoothing = 0.0f;
-    float remoteSmoothing = 0.15f;
+    float localSmoothing = static_cast<float>(cameraunlock::math::kDefaultLocalSmoothing);
+    float remoteSmoothing = static_cast<float>(cameraunlock::math::kDefaultRemoteSmoothing);
     CameraMode cameraMode = CameraMode::Normal;
     uint32_t injectHookRva = 0;
     float positionScale = 100.0f;
