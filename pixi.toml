@@ -6,6 +6,7 @@ channels = ["conda-forge"]
 platforms = ["win-64"]
 
 [tasks]
+update-submodule = "git submodule update --remote cameraunlock-core && powershell -NoProfile -ExecutionPolicy Bypass -File cameraunlock-core/scripts/update-submodule.ps1"
 sync = "git submodule update --remote cameraunlock-core"
 configure = "cmake -S . -B build -G \"Visual Studio 18 2026\" -A x64"
 build = { cmd = "cmake --build build --config Release", depends-on = ["configure"] }
