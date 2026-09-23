@@ -15,6 +15,7 @@ An unofficial head tracking mod for Metaphor: ReFantazio that moves the camera w
 
 - **Decoupled look and aim** - head movement turns the view while the mouse and controller keep driving the game's own camera.
 - **6DOF positional tracking** - lean and peek by moving your head in space, not just rotating it.
+- **Works with any OpenTrack compatible tracker** - free options available for PC, iOS and Android
 
 ## Requirements
 
@@ -23,6 +24,13 @@ An unofficial head tracking mod for Metaphor: ReFantazio that moves the camera w
 - Windows 10 or 11, 64-bit.
 
 ## Installation
+
+### Lopari
+
+Once this mod is available in Lopari, download [Lopari](https://lopari.app), choose **Metaphor: ReFantazio**, and click
+**Play with head tracking**.
+
+### Standalone Installer
 
 1. Download the installer ZIP from the [Releases page](https://github.com/itsloopyo/metaphor-refantazio-headtracking/releases) and extract it anywhere.
 2. Double-click `install.cmd`. It installs the vendored Ultimate ASI Loader as `winmm.dll` and deploys `MetaphorHeadTracking.asi` next to `METAPHOR.exe`.
