@@ -25,8 +25,8 @@ e01515c2656aaf533bae4350dc45b702c3e3d4043935743dcc9bd5ea581fbe1c  tests/config_d
 72f870264eeba25b7ccd0464b040eb123db8abc01e0f63b0eb543e43f5eae43b  tests/config_differential/data/first-run-4bca980.ini  dev WriteDefaultIni
 #
 # The frozen import. Never edited once the conversion landed.
-54223b37d995a36df4f3f4223baa8bd0e12fa96b1e83e7436e8635b1d7cea506  src/MetaphorHeadTracking/legacy_config/legacy_config.h  frozen import
-f0a29a25288f3cc08077da86b92a14c6966201f0b9faddb72a7f35107d842891  src/MetaphorHeadTracking/legacy_config/legacy_config.cpp  frozen import
+54223b37d995a36df4f3f4223baa8bd0e12fa96b1e83e7436e8635b1d7cea506  src/legacy_config/legacy_config.h  frozen import
+f0a29a25288f3cc08077da86b92a14c6966201f0b9faddb72a7f35107d842891  src/legacy_config/legacy_config.cpp  frozen import
 #
 # The core sources the import compiles. IniReader is frozen in core and its two files equal
 # 3465659's, so the import reads a file with the helpers the dev build had. file_log is the log the

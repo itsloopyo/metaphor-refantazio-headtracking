@@ -29,11 +29,12 @@ add_library(MetaphorHeadTracking SHARED
     src/MetaphorHeadTracking/camera_hook.cpp
     src/MetaphorHeadTracking/build_profiles.cpp
     src/MetaphorHeadTracking/config.cpp
-    src/MetaphorHeadTracking/legacy_config/legacy_config.cpp
+    src/legacy_config/legacy_config.cpp
 )
 
 target_include_directories(MetaphorHeadTracking PRIVATE
     src/MetaphorHeadTracking
+    src
     cameraunlock-core/cpp/include
     third_party/minhook/include
 )
@@ -100,10 +101,11 @@ if(METAPHOR_BUILD_TESTS)
     add_executable(config_differential_tests
         tests/config_differential/differential_tests.cpp
         src/MetaphorHeadTracking/config.cpp
-        src/MetaphorHeadTracking/legacy_config/legacy_config.cpp
+        src/legacy_config/legacy_config.cpp
     )
     target_include_directories(config_differential_tests PRIVATE
         src/MetaphorHeadTracking
+        src
         cameraunlock-core/cpp/include
         tests/config_differential)
     target_compile_definitions(config_differential_tests PRIVATE
@@ -129,10 +131,11 @@ if(METAPHOR_BUILD_TESTS)
     add_executable(config_tests
         tests/config_tests.cpp
         src/MetaphorHeadTracking/config.cpp
-        src/MetaphorHeadTracking/legacy_config/legacy_config.cpp
+        src/legacy_config/legacy_config.cpp
     )
     target_include_directories(config_tests PRIVATE
         src/MetaphorHeadTracking
+        src
         cameraunlock-core/cpp/include)
     target_compile_definitions(config_tests PRIVATE
         METAPHOR_COMMITTED_CONFIG="${CMAKE_SOURCE_DIR}/config/CameraUnlock.ini")

@@ -3,7 +3,7 @@
 //
 //   oracle     the reader of the dev pre-release (4bca980), the only published build, with the
 //              core sources it compiled at its pin 3465659 (oracle_adapter.h)
-//   import     the frozen reader in src/MetaphorHeadTracking/legacy_config/
+//   import     the frozen reader in src/legacy_config/
 //   migration  the config owner in a folder holding only MetaphorHeadTracking.ini, the legacy
 //              file, importing it into a new CameraUnlock.ini, then the canonical reader and table
 //              on that file
