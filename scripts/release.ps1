@@ -68,6 +68,10 @@ if (-not (Test-SemanticVersion -Version $newVersion)) {
     exit 2
 }
 
+# launcher-manifest.json names the first version that reads CameraUnlock.ini, and nothing on the
+# release path otherwise holds the version to it before the tag is pushed.
+Assert-ReleaseNotBelowCanonicalSince -RepoRoot $ProjectRoot -Version $newVersion
+
 # 2. Preconditions: on main, clean tree, tag absent.
 $branch = (git rev-parse --abbrev-ref HEAD).Trim()
 if ($branch -ne 'main') {

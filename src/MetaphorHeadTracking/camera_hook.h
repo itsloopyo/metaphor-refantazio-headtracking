@@ -20,12 +20,12 @@ enum class CameraMode {
 // Normal mode injects head rotation once a build profile's camera offsets are
 // mapped; until then it stays dormant and ApplyHeadRotation() is a no-op.
 //
-// Discovery mode (INI [Discovery] Enabled=true) runs the shared CameraDiscovery
+// Discovery mode ([Diagnostics] CameraDiscovery=true) runs the shared CameraDiscovery
 // state machine to locate the per-frame camera update and guess its angle
 // fields.
 //
-// Dump mode (INI [Diagnostics] DumpFollowCam=true) hooks the confirmed overworld
-// follow-camera update function and, on the Insert / Ctrl+Shift+U hotkey, dumps
+// Dump mode ([Diagnostics] DumpFollowCam=true) hooks the confirmed overworld
+// follow-camera update function and, on DiagnosticKey, dumps
 // the camera object's float layout to the log. Capturing two dumps at different
 // in-game camera orientations identifies the real yaw/pitch/roll fields (the
 // discovery heuristic mis-guesses them).
@@ -35,8 +35,8 @@ public:
     ~CameraHook();
 
     // Overrides the view-builder hook RVA used for injection (0 keeps the
-    // default). Lets candidate functions be A/B tested from the INI without a
-    // rebuild. Call before Initialize.
+    // default). Lets candidate functions be A/B tested from CameraUnlock.ini
+    // without a rebuild. Call before Initialize.
     void SetInjectHookRva(std::uint32_t rva);
 
     bool Initialize(const BuildProfile* profile, void* exeModuleBase, CameraMode mode);
@@ -44,8 +44,8 @@ public:
     bool IsActive() const { return m_active; }
     CameraMode Mode() const { return m_mode; }
 
-    // Insert / Ctrl+Shift+U action: restart discovery (Discovery mode) or request
-    // a layout dump on the next camera frame (Dump mode).
+    // DiagnosticKey action: restart discovery (Discovery mode) or request a
+    // layout dump on the next camera frame (Dump mode).
     void OnDiagnosticHotkey();
 
     // Called once per presented frame. Drives discovery; no-op otherwise.
@@ -59,17 +59,14 @@ public:
     // z=forward) for the camera-update detour to apply. Call every frame.
     void ApplyHeadPosition(float x, float y, float z);
 
-    // World units per meter for position translation (INI [Position] Scale).
-    void SetPositionScale(float scale);
-
     // Yaw mode: true = world-space (horizon-locked) yaw, false = camera-local
-    // yaw. Initialized from the INI [General] WorldSpaceYaw value at startup.
+    // yaw. Initialized from [General] WorldSpaceYaw at startup.
     void SetWorldSpaceYaw(bool world);
     bool IsWorldSpaceYaw() const;
 
-    // Flips the yaw mode at runtime (Page Down / Ctrl+Shift+H) and logs the new
-    // state.
-    void ToggleYawMode();
+    // Flips the yaw mode at runtime (YawModeKey), logs the new state and returns
+    // it: true for world-space.
+    bool ToggleYawMode();
 
     // Enables/disables injection (mirrors the tracking-enabled toggle). Disabling
     // zeroes the offset so the view returns to the game's normal follow camera.

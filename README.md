@@ -44,7 +44,7 @@ To place the files by hand instead of running `install.cmd` (or when using the N
 
 1. Copy the vendored Ultimate ASI Loader DLL into the game folder next to `METAPHOR.exe`, renamed to `winmm.dll`.
 2. Copy `MetaphorHeadTracking.asi` into the same folder.
-3. Optionally place a `MetaphorHeadTracking.ini` next to `METAPHOR.exe` (see Configuration).
+3. Launch the game once: the mod creates `CameraUnlock.ini` next to `METAPHOR.exe` (see Configuration).
 
 The Nexus ZIP contains only the deploy-path files (no loader); you supply the ASI loader yourself.
 
@@ -111,9 +111,10 @@ view sits off to one side, centre it in the tracker.
 
 ## Controls
 
-Two equivalent binding sets - use whichever your keyboard has:
+Each action has a key and a Ctrl+Shift chord. Both are rebindable in `CameraUnlock.ini`
+(`[Hotkeys]`); these are the defaults:
 
-| Action              | Nav-cluster | Chord           |
+| Action              | Key         | Chord           |
 |---------------------|-------------|-----------------|
 | Toggle tracking     | `End`       | `Ctrl+Shift+Y`  |
 | Cycle tracking mode | `Page Up`   | `Ctrl+Shift+G`  |
@@ -126,56 +127,121 @@ Two equivalent binding sets - use whichever your keyboard has:
 3. Position only (rotational tracking disabled)
 4. Back to normal
 
+The tracking mode and the yaw mode you pick are saved to `CameraUnlock.ini` and come back at the
+next start. `End` changes the current session only; `EnableOnStartup` decides whether tracking
+is on when the game starts.
+
 ## Configuration
 
-Configuration is optional. The mod writes a `MetaphorHeadTracking.ini` next to `METAPHOR.exe` on first launch if one is not already there; edit it and relaunch to change settings. A full file looks like:
+Apart from creating `CameraUnlock.ini` at startup when there is none, the mod writes to it only when a hotkey changes the tracking mode or the yaw mode. Edit it with the game closed.
+
+The view moves five times as far as your head, so the position limits, which are in metres of head movement, allow five times that much camera travel.
+
+<!-- cameraunlock:config -->
+The mod reads its settings from `CameraUnlock.ini` in the game folder, and creates the file when it starts and finds none. Edit it with any text editor.
+
+A setting set to `default` takes its value from `Defaults.ini`, which every head tracking mod that keeps its settings in `CameraUnlock.ini` reads. Head tracking mods that keep their settings in another file do not read it. Writing a value in place of `default` changes that setting for this game only. When the mod saves a setting that a hotkey changed in game, it writes the new value in place of `default`, so that setting no longer follows `Defaults.ini` in this game until you set it to `default` again.
+
+`Defaults.ini` is `%AppData%\CameraUnlock\Defaults.ini` on Windows; `$XDG_CONFIG_HOME/CameraUnlock/Defaults.ini` on Linux, or `~/.config/CameraUnlock/Defaults.ini` where `XDG_CONFIG_HOME` is not set, under Wine and Proton too; and `~/Library/Application Support/CameraUnlock/Defaults.ini` on macOS. The mod's log, where it writes one, names the file it read.
+
+When the mod starts and finds no `Defaults.ini`, it creates one holding the built-in values, unless Windows runs the game as a packaged app. The mod never changes `Defaults.ini` after that. Edit it with any text editor.
+
+The built-in value of each setting set to `default` below:
+
+- `UdpPort=4242`
+- `EnableOnStartup=true`
+- `WorldSpaceYaw=true`
+- `RotationEnabled=true`
+- `LocalSmoothing=0.0`
+- `RemoteSmoothing=0.15`
+- `PositionEnabled=true`
+- `PositionLimitX=0.3`
+- `PositionLimitY=0.2`
+- `PositionLimitYDown=0.2`
+- `PositionLimitZ=0.4`
+- `PositionLimitZBack=0.1`
+- `ToggleKey=End, Ctrl+Shift+Y`
+- `CycleTrackingModeKey=PageUp, Ctrl+Shift+G`
+- `YawModeKey=PageDown, Ctrl+Shift+H`
+
+With every setting at its default, the file reads:
 
 ```ini
+; Metaphor: ReFantazio head tracking settings.
+; Comments start with ; and go on their own line. Text after a value is part of the value.
+; Hotkeys are key names such as End, PageUp or Ctrl+Shift+Y. Separate several with commas; leave empty for none.
+; A setting set to default takes its value from Defaults.ini, which every head tracking mod
+; that keeps its settings in CameraUnlock.ini reads: %AppData%\CameraUnlock\Defaults.ini on
+; Windows, $XDG_CONFIG_HOME/CameraUnlock/Defaults.ini (normally ~/.config/CameraUnlock) on
+; Linux, under Wine and Proton too, and ~/Library/Application Support/CameraUnlock/Defaults.ini
+; on macOS. The log names the file it read. Write a value instead of default to change that
+; setting for this game only.
+
+[CameraUnlock]
+; Written by the mod. Leave this section in place.
+ConfigFormat=1
+
+[Network]
+; UDP port the mod receives tracker data on (OpenTrack protocol).
+UdpPort=default
+
 [General]
-UdpPort=4242
-EnableOnStartup=true
-; Yaw mode: true = horizon-locked yaw (default), false = camera-local
-WorldSpaceYaw=true
-
-[Hotkeys]
-; Page Down (0x22) - toggle world/local yaw
-YawModeKey=0x22
-
-[Sensitivity]
-Yaw=1.0
-Pitch=1.0
-Roll=1.0
-InvertYaw=false
-; InvertPitch is on by default so looking up/down moves the view the right way
-InvertPitch=true
-InvertRoll=false
+; true: head tracking is on when the game starts. ToggleKey turns it on and off.
+EnableOnStartup=default
+; true: yaw turns around the world's up axis. false: around the camera's own up axis.
+WorldSpaceYaw=default
+; true: turning your head turns the view.
+; Tracking mode at startup, with PositionEnabled. The mode hotkey changes both.
+RotationEnabled=default
 
 [Smoothing]
-; Applied when the tracker runs on this machine (loopback).
-; 0 = no smoothing, 1 = heavy. Covers rotation and position.
-LocalSmoothing=0.0
-; Applied when the tracker is a remote device on the network.
-; 0 = no smoothing, 1 = heavy. Covers rotation and position.
-RemoteSmoothing=0.15
+; Smoothing when the tracker runs on this PC. 0 is the least, 1 the most.
+LocalSmoothing=default
+; Smoothing when the tracker is another device on the network, such as a phone.
+; 0 is the least, 1 the most.
+RemoteSmoothing=default
 
 [Position]
-; World units per meter for positional tracking
-Scale=100.0
-; Per-axis position sensitivity (x=right, y=up, z=forward/back)
-SensitivityX=5.0
-SensitivityY=5.0
-SensitivityZ=5.0
-; Per-axis movement box (meters). Default is effectively unbounded - this is a
-; third-person orbit camera, not a head pinned to the player's neck. Lower it to
-; pen positional movement back into a box.
-Limit=1000.0
-; InvertZ is on by default so leaning forward/back reads the right way in-game
-InvertX=false
-InvertY=false
-InvertZ=true
-```
+; true: moving your head moves the view.
+; Tracking mode at startup, with RotationEnabled. The mode hotkey changes both.
+PositionEnabled=default
+; How far, in metres of head movement, leaning left or right can move the view,
+; which moves five times as far.
+PositionLimitX=default
+; How far, in metres of head movement, raising your head can move the view,
+; which moves five times as far.
+PositionLimitY=default
+; How far, in metres of head movement, lowering your head can move the view,
+; which moves five times as far.
+PositionLimitYDown=default
+; How far, in metres of head movement, leaning forward can move the view,
+; which moves five times as far.
+PositionLimitZ=default
+; How far, in metres of head movement, leaning back can move the view,
+; which moves five times as far.
+PositionLimitZBack=default
 
-Rotation sensitivities default to 1.0; position sensitivities default to 5.0 (this is a third-person camera, so head translation needs more gain to read on screen). Smoothing is two values, each from 0.0 to 1.0: the mod uses `LocalSmoothing` (default 0.0) when the tracker runs on this PC and `RemoteSmoothing` (default 0.15) when it is a device on the network, and each covers rotation and position.
+[Hotkeys]
+; Turns head tracking on and off.
+ToggleKey=default
+; Changes the tracking mode: rotation and position, rotation only, position only.
+CycleTrackingModeKey=default
+; Switches yaw between the world's up axis and the camera's own (WorldSpaceYaw).
+YawModeKey=default
+; Diagnostics: in a diagnostic mode below, restarts the camera discovery or dumps the
+; follow camera to the log. Does nothing in normal play.
+DiagnosticKey=Insert, Ctrl+Shift+U
+
+[Diagnostics]
+; Diagnostics: true hooks the follow camera and dumps it on DiagnosticKey, with no head
+; tracking. Leave off for play.
+DumpFollowCam=false
+; Diagnostics: true runs the camera discovery instead of head tracking. Leave off for play.
+CameraDiscovery=false
+; The game function the camera hook runs through. 0x0 = the one mapped for the running build.
+; InjectHookRva=0x0
+```
+<!-- /cameraunlock:config -->
 
 ## Troubleshooting
 
@@ -191,7 +257,7 @@ The mod writes `MetaphorHeadTracking.log` next to `METAPHOR.exe` on every launch
 - Press `End` (or `Ctrl+Shift+Y`) to confirm tracking is enabled. If the view sits off-centre, centre it in your tracker app (opentrack's Center bind, the CENTER button in Headcam).
 
 **Jittery / unstable tracking**
-- Raise the smoothing value your tracker uses toward 1.0: `[Smoothing] RemoteSmoothing` for a phone or other device on the network, `[Smoothing] LocalSmoothing` for a tracker running on this PC.
+- Raise the smoothing value your tracker uses toward 1.0 in `CameraUnlock.ini`: `[Smoothing] RemoteSmoothing` for a phone or other device on the network, `[Smoothing] LocalSmoothing` for a tracker running on this PC.
 - Wireless and webcam trackers benefit most, which is why `RemoteSmoothing` starts at 0.15 while a local tracker gets none.
 
 **Yaw feels wrong at extreme up/down angles**
@@ -199,11 +265,11 @@ The mod writes `MetaphorHeadTracking.log` next to `METAPHOR.exe` on every launch
 
 ## Updating
 
-Download the new release and run `install.cmd` again. Your configuration is preserved.
+Download the new release and run `install.cmd` again. The installer ships no config, so `CameraUnlock.ini` keeps your settings.
 
 ## Uninstalling
 
-Run `uninstall.cmd`. This removes the mod's `.asi` plugin. The Ultimate ASI Loader (`winmm.dll`) is only removed if this installer put it there. Run `uninstall.cmd /force` to remove it anyway.
+Run `uninstall.cmd`. This removes the mod's `.asi` plugin and leaves `CameraUnlock.ini` and `MetaphorHeadTracking.ini` in place. The Ultimate ASI Loader (`winmm.dll`) is only removed if this installer put it there. Run `uninstall.cmd /force` to remove it anyway.
 
 ## Building from Source
 

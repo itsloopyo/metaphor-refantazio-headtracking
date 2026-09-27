@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstring>
 
+#include "config.h"
 #include "exe_paths.h"
 
 #include "cameraunlock/discovery/camera_discovery.h"
@@ -42,7 +43,7 @@ std::atomic<bool> g_dumpRequested{false};
 // target right after it is written orbits the view with head tracking while the
 // game's own camera state (yaw/pitch/player position) stays clean.
 
-// INI override: hook only this candidate RVA (0 = hook all candidates).
+// [Diagnostics] InjectHookRva override: hook only this candidate RVA (0 = hook all candidates).
 std::uint32_t g_injectOverrideRva = 0;
 
 void* g_moduleBase = nullptr;
@@ -54,7 +55,6 @@ std::atomic<float> g_headRollRad{0.0f};
 std::atomic<float> g_posX{0.0f};  // meters (right, up, forward)
 std::atomic<float> g_posY{0.0f};
 std::atomic<float> g_posZ{0.0f};
-std::atomic<float> g_posScale{100.0f};  // game world units per meter
 
 // Yaw mode: true = world-space (horizon-locked) yaw, false = camera-local yaw.
 std::atomic<bool> g_worldSpaceYaw{true};
@@ -74,7 +74,7 @@ void StartDiscovery(cameraunlock::discovery::CameraDiscovery& disc, void* exeBas
     disc.Start(cfg);
     cameraunlock::logging::Line(
         "[camera] discovery started (%zu candidates); be in the OVERWORLD then press "
-        "Insert / Ctrl+Shift+U.", cfg.candidate_names.size());
+        "DiagnosticKey.", cfg.candidate_names.size());
 }
 
 // Known camera vtable RVAs (from discovery), used to identify linked camera
@@ -426,7 +426,7 @@ std::uintptr_t __fastcall ViewBuilderDetour(void* a1, void* a2, void* a3, void* 
                                      upv[0] * fwd[1] - upv[1] * fwd[0] };
                     float rl = std::sqrt(rgt[0] * rgt[0] + rgt[1] * rgt[1] + rgt[2] * rgt[2]);
                     if (rl > 1e-4f) { rgt[0] /= rl; rgt[1] /= rl; rgt[2] /= rl; }
-                    float s = g_posScale.load(std::memory_order_relaxed);
+                    const float s = kWorldUnitsPerMetre;
                     float off[3];
                     for (int i = 0; i < 3; i++)
                         off[i] = (rgt[i] * pX + upv[i] * pY + fwd[i] * pZ) * s;
@@ -518,7 +518,7 @@ bool CameraHook::Initialize(const BuildProfile* profile, void* exeModuleBase, Ca
         HookFn(exeModuleBase, 0x589060u, reinterpret_cast<void*>(&FollowUpdateDetour),
                reinterpret_cast<void**>(&g_origFollowUpdate), g_followHookTarget, "follow-update (dump)");
         cameraunlock::logging::Line(
-            "[camera] dump mode: Insert / Ctrl+Shift+U dumps layout AND arms the eye-writer watch");
+            "[camera] dump mode: DiagnosticKey dumps layout AND arms the eye-writer watch");
         return false;
     }
 
@@ -595,10 +595,6 @@ void CameraHook::ApplyHeadPosition(float x, float y, float z) {
     g_posZ.store(z, std::memory_order_relaxed);
 }
 
-void CameraHook::SetPositionScale(float scale) {
-    if (scale > 0.0f) g_posScale.store(scale, std::memory_order_relaxed);
-}
-
 void CameraHook::SetWorldSpaceYaw(bool world) {
     g_worldSpaceYaw.store(world, std::memory_order_relaxed);
 }
@@ -607,11 +603,12 @@ bool CameraHook::IsWorldSpaceYaw() const {
     return g_worldSpaceYaw.load(std::memory_order_relaxed);
 }
 
-void CameraHook::ToggleYawMode() {
+bool CameraHook::ToggleYawMode() {
     bool world = !g_worldSpaceYaw.load(std::memory_order_relaxed);
     g_worldSpaceYaw.store(world, std::memory_order_relaxed);
     cameraunlock::logging::Line("[hotkey] yaw mode: %s",
                                 world ? "world-space (horizon-locked)" : "camera-local");
+    return world;
 }
 
 void CameraHook::SetInjectionActive(bool active) {

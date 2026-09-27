@@ -28,6 +28,7 @@ add_library(MetaphorHeadTracking SHARED
     src/MetaphorHeadTracking/present_hook.cpp
     src/MetaphorHeadTracking/camera_hook.cpp
     src/MetaphorHeadTracking/build_profiles.cpp
+    src/MetaphorHeadTracking/config.cpp
     src/MetaphorHeadTracking/legacy_config/legacy_config.cpp
 )
 
@@ -68,14 +69,6 @@ if(METAPHOR_BUILD_TESTS)
     target_link_libraries(packet_parser_tests PRIVATE cameraunlock)
     add_test(NAME packet_parser_tests COMMAND packet_parser_tests)
 
-    add_executable(position_limits_tests tests/position_limits_tests.cpp)
-    target_include_directories(position_limits_tests PRIVATE
-        src/MetaphorHeadTracking
-        cameraunlock-core/cpp/include
-    )
-    target_link_libraries(position_limits_tests PRIVATE cameraunlock)
-    add_test(NAME position_limits_tests COMMAND position_limits_tests)
-
     # The config differential test. The oracle is the dev pre-release's reader with the core
     # sources it compiled, copied verbatim into tests/config_differential/oracle, and that build's
     # hotkey registration over the chord guards of its pin. It is two libraries, each renaming the
@@ -106,6 +99,7 @@ if(METAPHOR_BUILD_TESTS)
 
     add_executable(config_differential_tests
         tests/config_differential/differential_tests.cpp
+        src/MetaphorHeadTracking/config.cpp
         src/MetaphorHeadTracking/legacy_config/legacy_config.cpp
     )
     target_include_directories(config_differential_tests PRIVATE
@@ -113,11 +107,38 @@ if(METAPHOR_BUILD_TESTS)
         cameraunlock-core/cpp/include
         tests/config_differential)
     target_compile_definitions(config_differential_tests PRIVATE
-        METAPHOR_DIFFERENTIAL_DATA="${CMAKE_SOURCE_DIR}/tests/config_differential/data")
+        METAPHOR_DIFFERENTIAL_DATA="${CMAKE_SOURCE_DIR}/tests/config_differential/data"
+        METAPHOR_COMMITTED_CONFIG="${CMAKE_SOURCE_DIR}/config/CameraUnlock.ini")
     target_link_libraries(config_differential_tests PRIVATE
         cameraunlock metaphor_config_oracle metaphor_hotkeys_oracle)
     if(MSVC)
         target_compile_options(config_differential_tests PRIVATE /W4 /permissive-)
     endif()
     add_test(NAME config_differential_tests COMMAND config_differential_tests)
+
+    # Core's canonical config lint over the committed file and every file the differential test
+    # migrated, which it writes beside itself under migrated.
+    add_test(NAME config_lint COMMAND node
+        ${CMAKE_SOURCE_DIR}/tests/config_differential/lint-migrated.mjs
+        $<TARGET_FILE_DIR:config_differential_tests>/migrated)
+    set_tests_properties(config_lint PROPERTIES DEPENDS config_differential_tests)
+
+    # The committed config against the table, a first start, the toggles' saves and the legacy
+    # file's ANSI path. `--render-config <path>` makes it write the committed file instead
+    # (pixi run render-config).
+    add_executable(config_tests
+        tests/config_tests.cpp
+        src/MetaphorHeadTracking/config.cpp
+        src/MetaphorHeadTracking/legacy_config/legacy_config.cpp
+    )
+    target_include_directories(config_tests PRIVATE
+        src/MetaphorHeadTracking
+        cameraunlock-core/cpp/include)
+    target_compile_definitions(config_tests PRIVATE
+        METAPHOR_COMMITTED_CONFIG="${CMAKE_SOURCE_DIR}/config/CameraUnlock.ini")
+    target_link_libraries(config_tests PRIVATE cameraunlock)
+    if(MSVC)
+        target_compile_options(config_tests PRIVATE /W4 /permissive-)
+    endif()
+    add_test(NAME config_tests COMMAND config_tests)
 endif()

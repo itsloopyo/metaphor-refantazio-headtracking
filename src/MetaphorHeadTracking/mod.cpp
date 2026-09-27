@@ -2,38 +2,38 @@
 
 #include <Windows.h>
 #include <atomic>
-#include <fstream>
+#include <functional>
+#include <optional>
+#include <stdexcept>
 #include <string>
+#include <utility>
 
 #include "build_profiles.h"
 #include "camera_hook.h"
+#include "config.h"
 #include "exe_paths.h"
-#include "legacy_config/legacy_config.h"
-#include "position_limits.h"
 #include "present_hook.h"
 #include "version.h"
 
-#include "cameraunlock/data/tracking_pose.h"
-#include "cameraunlock/input/chord_hotkeys.h"
 #include "cameraunlock/hooks/hook_manager.h"
 #include "cameraunlock/input/hotkey_poller.h"
+#include "cameraunlock/input/key_binding_registration.h"
+#include "cameraunlock/input/key_bindings.h"
 #include "cameraunlock/logging/file_log.h"
-#include "cameraunlock/math/smoothing_utils.h"
 #include "cameraunlock/memory/pe_fingerprint.h"
 #include "cameraunlock/protocol/udp_receiver.h"
 #include "cameraunlock/time/frame_clock.h"
 #include "cameraunlock/tracking/head_tracking_session.h"
+#include "cameraunlock/tracking/tracking_mode.h"
 
 namespace metaphor {
 namespace {
 
+namespace cfg = cameraunlock::config;
 using cameraunlock::HeadTrackingSession;
-using cameraunlock::SensitivitySettings;
 using cameraunlock::TrackingMode;
 using cameraunlock::UdpReceiver;
-using cameraunlock::input::ChordGuarded;
 using cameraunlock::input::HotkeyPoller;
-using cameraunlock::input::NavGuarded;
 using cameraunlock::time::FrameClock;
 
 UdpReceiver g_receiver;
@@ -49,111 +49,54 @@ FrameClock g_clock;
 std::atomic<bool> g_enabled{true};
 bool g_initialized = false;
 
-// Nav-cluster virtual key codes.
-constexpr int kVkEnd = 0x23;       // toggle tracking
-constexpr int kVkPageUp = 0x21;    // cycle tracking mode
-constexpr int kVkPageDown = 0x22;  // toggle yaw mode
-// Ctrl+Shift chord letters, drawn from the T/Y/U/G/H/J cluster.
-constexpr int kVkY = 0x59;
-constexpr int kVkG = 0x47;
-constexpr int kVkH = 0x48;
-constexpr int kVkU = 0x55;
-constexpr int kVkInsert = 0x2D;  // restart discovery (discovery mode only)
+std::optional<cfg::ConfigOwner<Config>> g_owner;
+Config g_config;
 
-struct Config {
-    uint16_t port = 4242;
-    bool enableOnStartup = true;
-    SensitivitySettings sensitivity;
-    // Picked per connection from the packet's source address; both cover
-    // rotation and position, and neither is floored.
-    float localSmoothing = static_cast<float>(cameraunlock::math::kDefaultLocalSmoothing);
-    float remoteSmoothing = static_cast<float>(cameraunlock::math::kDefaultRemoteSmoothing);
-    CameraMode cameraMode = CameraMode::Normal;
-    uint32_t injectHookRva = 0;
-    float positionScale = 100.0f;
-    float positionSensX = 5.0f;
-    float positionSensY = 5.0f;
-    float positionSensZ = 5.0f;
-    // Third-person orbit cam: don't box the offset to a neck-sized envelope.
-    // Effectively unbounded (well past any real tracker travel); INI-tunable.
-    float positionLimit = 1000.0f;
-    bool positionInvertX = false;
-    bool positionInvertY = false;
-    bool positionInvertZ = true;  // Metaphor's forward/back lean reads inverted
-    bool worldSpaceYaw = true;
-    int yawModeKey = kVkPageDown;
-};
-
-void WriteDefaultIni(const std::string& path) {
-    std::ofstream f(path, std::ios::out | std::ios::trunc);
-    if (!f) {
-        cameraunlock::logging::Line("[config] could not write default INI to %s", path.c_str());
-        return;
-    }
-    f << "[General]\n"
-      << "UdpPort=4242\n"
-      << "EnableOnStartup=true\n"
-      << "WorldSpaceYaw=true\n"
-      << "\n"
-      << "[Sensitivity]\n"
-      << "Yaw=1.0\n"
-      << "Pitch=1.0\n"
-      << "Roll=1.0\n"
-      << "InvertYaw=false\n"
-      << "InvertPitch=true\n"
-      << "InvertRoll=false\n"
-      << "\n"
-      << "[Smoothing]\n"
-      << "; Applied when the tracker runs on this machine (loopback).\n"
-      << "; 0 = no smoothing, 1 = heavy. Covers rotation and position.\n"
-      << "LocalSmoothing=0.0\n"
-      << "; Applied when the tracker is a remote device on the network.\n"
-      << "; 0 = no smoothing, 1 = heavy. Covers rotation and position.\n"
-      << "RemoteSmoothing=0.15\n"
-      << "\n"
-      << "[Position]\n"
-      << "SensitivityX=5.0\n"
-      << "SensitivityY=5.0\n"
-      << "SensitivityZ=5.0\n"
-      << "InvertX=false\n"
-      << "InvertY=false\n"
-      << "InvertZ=true\n";
-    cameraunlock::logging::Line("[config] wrote default INI to %s", path.c_str());
+// The folder the game's executable runs from, with its trailing separator: where
+// MetaphorHeadTracking.ini has always been, and where CameraUnlock.ini goes. Empty when Windows
+// reports no path.
+std::wstring GameFolder() {
+    std::wstring path(32768, L'\0');
+    const DWORD len = GetModuleFileNameW(nullptr, path.data(), static_cast<DWORD>(path.size()));
+    if (len == 0 || len >= path.size()) return {};
+    path.resize(len);
+    const size_t slash = path.find_last_of(L"\\/");
+    if (slash == std::wstring::npos) return {};
+    return path.substr(0, slash + 1);
 }
 
-Config LoadConfig() {
-    Config cfg;
-    const std::string iniPath = ExeRelativePath("MetaphorHeadTracking.ini");
-    legacy::Config c;
-    if (legacy::Read(iniPath.c_str(), c) == legacy::ReadStatus::Absent) {
-        cameraunlock::logging::Line("[config] no INI found, writing defaults");
-        WriteDefaultIni(iniPath);
+// False when there is no folder to read CameraUnlock.ini from.
+bool LoadConfig() {
+    const std::wstring folder = GameFolder();
+    if (folder.empty()) {
+        cameraunlock::logging::Line(
+            "[config] Windows reported no path for the game's executable, so there is no folder to read "
+            "CameraUnlock.ini from; head tracking does not start.");
+        return false;
     }
-    cfg.port = c.port;
-    cfg.enableOnStartup = c.enableOnStartup;
-    cfg.sensitivity.yaw = c.yaw;
-    cfg.sensitivity.pitch = c.pitch;
-    cfg.sensitivity.roll = c.roll;
-    cfg.sensitivity.invert_yaw = c.invertYaw;
-    cfg.sensitivity.invert_pitch = c.invertPitch;
-    cfg.sensitivity.invert_roll = c.invertRoll;
-    cfg.localSmoothing = c.localSmoothing;
-    cfg.remoteSmoothing = c.remoteSmoothing;
-    cfg.cameraMode = c.cameraMode == legacy::CameraMode::Dump        ? CameraMode::Dump
-                     : c.cameraMode == legacy::CameraMode::Discovery ? CameraMode::Discovery
-                                                                     : CameraMode::Normal;
-    cfg.injectHookRva = c.injectHookRva;
-    cfg.positionScale = c.positionScale;
-    cfg.positionSensX = c.positionSensX;
-    cfg.positionSensY = c.positionSensY;
-    cfg.positionSensZ = c.positionSensZ;
-    cfg.positionLimit = c.positionLimit;
-    cfg.positionInvertX = c.positionInvertX;
-    cfg.positionInvertY = c.positionInvertY;
-    cfg.positionInvertZ = c.positionInvertZ;
-    cfg.worldSpaceYaw = c.worldSpaceYaw;
-    cfg.yawModeKey = c.yawModeKey;
-    return cfg;
+    cfg::ConfigOwnerOptions<Config> options = MakeConfigOwnerOptions(folder, cfg::DefaultsFile::PerUser());
+    // The mod has no overlay, so the player's one-line messages (an import that did not run,
+    // Defaults.ini that cannot be read, a save that failed) go to the log.
+    options.status_sink = [](const std::string& message) {
+        cameraunlock::logging::Line("[config] %s", message.c_str());
+    };
+    g_owner.emplace(std::move(options));
+    const cfg::ConfigLoadResult<Config> loaded = g_owner->Load();
+    for (const std::string& line : loaded.log) cameraunlock::logging::Line("[config] %s", line.c_str());
+    cameraunlock::logging::Line("[config] %s: %s", kConfigFileName, cfg::ConfigLoadStatusName(loaded.status));
+    g_config = loaded.config;
+    return true;
+}
+
+// Apply-then-save for a toggle: the session already runs on the new value, and a failed save
+// leaves it running on it.
+void Save(const std::function<void(Config&)>& change, const char* what) {
+    const cfg::ConfigSaveResult saved = g_owner->Save(change);
+    for (const std::string& line : saved.log) cameraunlock::logging::Line("[config] %s", line.c_str());
+    if (saved.status != cfg::ConfigSaveStatus::Saved) {
+        cameraunlock::logging::Line("[config] %s not saved (%s): %s", what, cfg::ConfigSaveStatusName(saved.status),
+                                    saved.reason.c_str());
+    }
 }
 
 void OnPresentFrame() {
@@ -171,7 +114,8 @@ void OnPresentFrame() {
 
     float yaw, pitch, roll;
     if (g_session.GetRotation(yaw, pitch, roll)) {
-        g_camera.ApplyHeadRotation(yaw, pitch, roll);
+        // The engine's pitch runs against the tracker's (the dev build shipped InvertPitch=true).
+        g_camera.ApplyHeadRotation(yaw, -pitch, roll);
         // Latched, and emitted after the apply so it means what it says. The
         // receiver's own "First UDP packet received" line already proves packets
         // arrived; this one proves a processed pose got as far as the camera
@@ -187,7 +131,9 @@ void OnPresentFrame() {
         }
         float px, py, pz;
         if (g_session.GetPositionOffset(px, py, pz)) {
-            g_camera.ApplyHeadPosition(px, py, pz);
+            // The shipped position gain, and the engine's forward axis, which runs against the
+            // tracker's (the dev build shipped [Position] InvertZ=true).
+            g_camera.ApplyHeadPosition(px * kPositionGain, py * kPositionGain, -pz * kPositionGain);
         } else {
             g_camera.ApplyHeadPosition(0.0f, 0.0f, 0.0f);
         }
@@ -204,34 +150,46 @@ void CycleTrackingMode() {
         : mode == TrackingMode::RotationOnly      ? "rotation only (position off)"
                                                   : "position only (rotation off)";
     cameraunlock::logging::Line("[hotkey] tracking mode: %s", label);
+    const cameraunlock::TrackingModeChannels channels = cameraunlock::EncodeTrackingMode(mode);
+    Save(
+        [channels](Config& c) {
+            c.rotation_enabled = channels.rotation_enabled;
+            c.position_enabled = channels.position_enabled;
+        },
+        "tracking mode");
 }
 
-void SetupHotkeys(int yawModeKey) {
-    auto toggle = [] {
+void ToggleYawMode() {
+    const bool world = g_camera.ToggleYawMode();
+    Save([world](Config& c) { c.world_space_yaw = world; }, "yaw mode");
+}
+
+// The table read every list through the hotkey codec, so a list that does not parse here is a
+// bug, not a player's typo.
+void RegisterList(const std::string& list, const char* key, std::function<void()> action) {
+    const cameraunlock::input::KeyBindingsParseResult parsed = cameraunlock::input::ParseKeyBindings(list);
+    if (!parsed.ok()) {
+        throw std::logic_error(std::string("[Hotkeys] ") + key + "=" + list + " does not parse: " + parsed.error);
+    }
+    cameraunlock::input::RegisterKeyBindings(g_hotkeys, parsed.bindings, std::move(action));
+}
+
+void SetupHotkeys() {
+    // End changes the session only.
+    RegisterList(g_config.toggle_key_name, "ToggleKey", [] {
         bool now = !g_enabled.load(std::memory_order_relaxed);
         g_enabled.store(now, std::memory_order_relaxed);
         cameraunlock::logging::Line("[hotkey] tracking %s", now ? "ON" : "OFF");
-    };
-    auto cycleMode = [] { CycleTrackingMode(); };
-    auto toggleYaw = [] { g_camera.ToggleYawMode(); };
-
-    // Nav cluster (guarded so the chord path is the sole Ctrl+Shift trigger).
-    g_hotkeys.AddHotkey(kVkEnd, NavGuarded(toggle));
-    g_hotkeys.AddHotkey(kVkPageUp, NavGuarded(cycleMode));
-    g_hotkeys.AddHotkey(yawModeKey, NavGuarded(toggleYaw));
-
-    // Ctrl+Shift chord alternatives.
-    g_hotkeys.AddHotkey(kVkY, ChordGuarded(toggle));
-    g_hotkeys.AddHotkey(kVkG, ChordGuarded(cycleMode));
-    g_hotkeys.AddHotkey(kVkH, ChordGuarded(toggleYaw));
-
+    });
+    RegisterList(g_config.cycle_tracking_mode_key_name, "CycleTrackingModeKey", [] { CycleTrackingMode(); });
+    RegisterList(g_config.yaw_mode_key_name, "YawModeKey", [] { ToggleYawMode(); });
     if (g_camera.Mode() != CameraMode::Normal) {
-        auto diag = [] { g_camera.OnDiagnosticHotkey(); };
-        g_hotkeys.AddHotkey(kVkInsert, NavGuarded(diag));
-        g_hotkeys.AddHotkey(kVkU, ChordGuarded(diag));
+        RegisterList(g_config.diagnostic_key_name, "DiagnosticKey", [] { g_camera.OnDiagnosticHotkey(); });
     }
-
     g_hotkeys.Start(16);
+    cameraunlock::logging::Line("[init] hotkeys: toggle=[%s] cycle mode=[%s] yaw mode=[%s]",
+                                g_config.toggle_key_name.c_str(), g_config.cycle_tracking_mode_key_name.c_str(),
+                                g_config.yaw_mode_key_name.c_str());
 }
 
 }  // namespace
@@ -256,30 +214,19 @@ void ModMain() {
         }
     }
 
-    Config cfg = LoadConfig();
-    g_enabled.store(cfg.enableOnStartup, std::memory_order_relaxed);
-    g_session.GetProcessor().SetSensitivity(cfg.sensitivity);
-    cameraunlock::logging::Line(
-        "[config] invert yaw=%d pitch=%d roll=%d | worldSpaceYaw=%d | posInvert x=%d y=%d z=%d",
-        cfg.sensitivity.invert_yaw, cfg.sensitivity.invert_pitch, cfg.sensitivity.invert_roll,
-        cfg.worldSpaceYaw, cfg.positionInvertX, cfg.positionInvertY, cfg.positionInvertZ);
-    {
-        auto pos = g_session.GetPositionProcessor().GetSettings();
-        pos.sensitivity_x = cfg.positionSensX;
-        pos.sensitivity_y = cfg.positionSensY;
-        pos.sensitivity_z = cfg.positionSensZ;
-        ApplyPositionLimit(pos, cfg.positionLimit);
-        pos.invert_x = cfg.positionInvertX;
-        pos.invert_y = cfg.positionInvertY;
-        pos.invert_z = cfg.positionInvertZ;
-        g_session.GetPositionProcessor().SetSettings(pos);
-    }
+    if (!LoadConfig()) return;
+    const Config& cfg = g_config;
+    g_enabled.store(cfg.enable_on_startup, std::memory_order_relaxed);
+    // The table reads a pair that names no mode as its defaults, so the pair always decodes.
+    g_session.SetMode(cameraunlock::DecodeTrackingMode(cfg.rotation_enabled, cfg.position_enabled).value());
+    // The pose arrives unshaped: the processors keep their identity sensitivity and no inversion.
+    g_session.GetPositionProcessor().SetSettings(cfg.position);
 
-    // After SetSettings, never before: the session hands both values to the
-    // rotation and the position processor, and the connection flag that picks
-    // between them is fed from the receiver inside Update().
-    g_session.SetLocalSmoothing(cfg.localSmoothing);
-    g_session.SetRemoteSmoothing(cfg.remoteSmoothing);
+    // After SetSettings, never before: the session hands both values to the rotation and the
+    // position processor, and the connection flag that picks between them is fed from the
+    // receiver inside Update().
+    g_session.SetLocalSmoothing(cfg.local_smoothing);
+    g_session.SetRemoteSmoothing(cfg.remote_smoothing);
 
     using cameraunlock::hooks::HookManager;
     using cameraunlock::hooks::HookStatus;
@@ -291,19 +238,21 @@ void ModMain() {
     g_receiver.SetLog([](const std::string& msg) {
         cameraunlock::logging::Line("[udp] %s", msg.c_str());
     });
-    if (g_receiver.Start(cfg.port)) {
-        cameraunlock::logging::Line("[init] UDP receiver listening on %u", cfg.port);
+    const uint16_t port = static_cast<uint16_t>(cfg.udp_port);
+    if (g_receiver.Start(port)) {
+        cameraunlock::logging::Line("[init] UDP receiver listening on %u", port);
     } else {
-        cameraunlock::logging::Line("[init] UDP receiver bind pending/retrying on %u", cfg.port);
+        cameraunlock::logging::Line("[init] UDP receiver bind pending/retrying on %u", port);
     }
 
-    g_camera.SetInjectHookRva(cfg.injectHookRva);
-    g_camera.SetPositionScale(cfg.positionScale);
-    g_camera.Initialize(profile, exeBase, cfg.cameraMode);
-    g_camera.SetWorldSpaceYaw(cfg.worldSpaceYaw);
+    const CameraMode cameraMode = cfg.dump_follow_cam    ? CameraMode::Dump
+                                  : cfg.camera_discovery ? CameraMode::Discovery
+                                                         : CameraMode::Normal;
+    g_camera.SetInjectHookRva(cfg.inject_hook_rva);
+    g_camera.Initialize(profile, exeBase, cameraMode);
+    g_camera.SetWorldSpaceYaw(cfg.world_space_yaw);
 
-    SetupHotkeys(cfg.yawModeKey);
-    cameraunlock::logging::Line("[init] hotkeys registered (End/PgUp/PgDn + Ctrl+Shift Y/G/H)");
+    SetupHotkeys();
 
     if (InstallPresentHook(&OnPresentFrame)) {
         cameraunlock::logging::Line("[init] present hook live; per-frame tick running");
