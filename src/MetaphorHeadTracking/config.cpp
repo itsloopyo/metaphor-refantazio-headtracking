@@ -62,16 +62,33 @@ ImportResult Import(const LegacyInput& input, Config& out) {
     // after the limits, so the same bound in metres of head movement is Limit / 5 on each row. The
     // shipped 1000 bounded nothing a tracker reaches; those rows follow Defaults.ini like any
     // untouched row and keep the table's defaults here. A non-finite Limit imports as each row's
-    // default (N2), and one outside 0 to 50 has no canonical form, so the owner defers the import.
+    // default (N2). A finite one outside 0 to 50, which Limit / 5 puts outside the rows' 0 to 10,
+    // imports as the nearest end of it (N4), clamped as read so the log names the value in the file.
+    using LimitTraits = cfg::schema::ConceptTraits<Concept::PositionLimitX>;
+    static_assert(cfg::schema::ConceptTraits<Concept::PositionLimitY>::kMin == LimitTraits::kMin &&
+                      cfg::schema::ConceptTraits<Concept::PositionLimitY>::kMax == LimitTraits::kMax &&
+                      cfg::schema::ConceptTraits<Concept::PositionLimitYDown>::kMin == LimitTraits::kMin &&
+                      cfg::schema::ConceptTraits<Concept::PositionLimitYDown>::kMax == LimitTraits::kMax &&
+                      cfg::schema::ConceptTraits<Concept::PositionLimitZ>::kMin == LimitTraits::kMin &&
+                      cfg::schema::ConceptTraits<Concept::PositionLimitZ>::kMax == LimitTraits::kMax &&
+                      cfg::schema::ConceptTraits<Concept::PositionLimitZBack>::kMin == LimitTraits::kMin &&
+                      cfg::schema::ConceptTraits<Concept::PositionLimitZBack>::kMax == LimitTraits::kMax,
+                  "one Limit fills the five limit rows, so they take one range");
     if (!(c.positionLimit == shipped.positionLimit)) {
-        const float limit = cfg::LegacyFiniteOrDefault(c.positionLimit / kPositionGain, out.position.limit_x,
-                                                       "Position", "Limit", dropped);
-        const bool finite = std::isfinite(c.positionLimit);
-        out.position.limit_x = limit;
-        out.position.limit_y = finite ? limit : out.position.limit_y;
-        out.position.limit_y_down = finite ? limit : out.position.limit_y_down;
-        out.position.limit_z = finite ? limit : out.position.limit_z;
-        out.position.limit_z_back = finite ? limit : out.position.limit_z_back;
+        if (std::isfinite(c.positionLimit)) {
+            const float limit = cfg::LegacyClampToRange(c.positionLimit, LimitTraits::kMin * kPositionGain,
+                                                        LimitTraits::kMax * kPositionGain, "Position", "Limit",
+                                                        dropped) /
+                                kPositionGain;
+            out.position.limit_x = limit;
+            out.position.limit_y = limit;
+            out.position.limit_y_down = limit;
+            out.position.limit_z = limit;
+            out.position.limit_z_back = limit;
+        } else {
+            out.position.limit_x =
+                cfg::LegacyFiniteOrDefault(c.positionLimit, out.position.limit_x, "Position", "Limit", dropped);
+        }
     }
 
     // Pose shaping is the tracker's (approved change pose_shaping). The shipped InvertPitch=true,
@@ -104,7 +121,8 @@ ImportResult Import(const LegacyInput& input, Config& out) {
 
     // A row still at what the dev build ran on with no file is no player's choice, so it follows
     // Defaults.ini. The build always started in rotation and position, and had no setting for the
-    // toggle or mode hotkeys.
+    // toggle or mode hotkeys. Each value is compared as read: a Limit that is not finite follows
+    // Defaults.ini too (N2), and one N4 clamped is the player's.
     LegacyFollowsDefaultsIni follows;
     follows.Setting(Concept::UdpPort, c.port, shipped.port);
     follows.Setting(Concept::EnableOnStartup, c.enableOnStartup, shipped.enableOnStartup);

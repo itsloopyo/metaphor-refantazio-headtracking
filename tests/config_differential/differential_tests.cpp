@@ -16,12 +16,13 @@
 // starts on are the import's, apart from the approved changes, each of which the import must
 // record as dropped. A sensitivity, inversion or scale the player set away from what the dev
 // build shipped is dropped (pose_shaping), a non-finite Limit imports as each limit row's default
-// (N2), and a yaw mode hotkey on a Ctrl, Shift or Alt key alone imports as unbound (N3), keeping
-// its Ctrl+Shift chord. The one [Position] Limit bounded the offset after the shipped gain of 5,
-// which now goes on after the limits, so a Limit the player set carries as Limit / 5 on each of
-// the five limit rows; one outside 0 to 50 has no canonical form, so the owner defers that import
-// and the session runs on what the import gave (kUnrepresentable). The hotkeys fire as the dev
-// build fired them apart from N3 (kFleetHotkeyRule).
+// and leaves those rows to Defaults.ini (N2), and a yaw mode hotkey on a Ctrl, Shift or Alt key
+// alone imports as unbound (N3), keeping its Ctrl+Shift chord. The one [Position] Limit bounded
+// the offset after the shipped gain of 5, which now goes on after the limits, so a Limit the
+// player set carries as Limit / 5 on each of the five limit rows; a finite one outside 0 to 50,
+// whose Limit / 5 is outside the rows' 0 to 10, is clamped to the nearest end first (N4) and
+// carried as the player's. The hotkeys fire as the dev build fired them apart from N3
+// (kFleetHotkeyRule).
 //
 // A row the player never changed from what the dev build ran on with no file follows Defaults.ini:
 // the import lists it in follows_defaults_ini and the migration writes it default, the tracking
@@ -43,8 +44,8 @@
 //
 // Inputs: no file, an empty file, the file the dev build wrote on its first start (it shipped no
 // config in its ZIPs and seeded none through the launcher), a yaw mode hotkey on each of Ctrl,
-// Shift and Alt, a non-finite value in each float the build read, and core's corpus over the
-// first-start file.
+// Shift and Alt, a non-finite value in each float the build read, a Limit on each side of 0 to 50,
+// and core's corpus over the first-start file.
 
 #include "config.h"
 #include "legacy_config/legacy_config.h"
@@ -95,12 +96,10 @@ const char* const kComparison1Differences[] = {
 const char* const kFleetHotkeyRule =
     "a yaw mode code on a Ctrl, Shift or Alt key alone no longer fires (N3); every other press fires as before";
 
-// Limit / 5 on the five limit rows, which take 0 to 10 metres. Core has no rule for a value outside
-// a concept's range, so the owner defers such a file: it stays as it is, the session runs on what
-// the import read, and nothing is saved.
-const char* const kUnrepresentable =
-    "a finite [Position] Limit other than the shipped 1000 below 0 or above 50, whose Limit / 5 the canonical "
-    "limit rows cannot hold, so the import defers";
+// Limit / 5 on the five limit rows, which take 0 to 10 metres, so the Limit read is clamped to 0 to
+// 50 (N4).
+constexpr float kLimitMin = 0.0f;
+constexpr float kLimitMax = 50.0f;
 
 constexpr const char* kFileName = "MetaphorHeadTracking.ini";
 
@@ -534,12 +533,12 @@ struct Tally {
     struct Run {
         int created = 0;
         int imported = 0;
-        int deferred = 0;
         int with_default_rows = 0;
         int with_values = 0;
     } builtin, altered;
     int with_pose_shaping_dropped = 0;
     int with_non_finite_dropped = 0;
+    int with_out_of_range_clamped = 0;
     int with_modifier_key_dropped = 0;
     int touched = 0;
     int limit_touched = 0;
@@ -556,8 +555,9 @@ const std::set<Concept>& AllRows() {
     return all;
 }
 
-// The rows the player never changed: each reads as the dev build ran on with no file. One Limit
-// gave all five limit rows; the mode and the toggle and mode hotkeys were no setting.
+// The rows the player never changed: each reads as the dev build ran on with no file, or, for the
+// Limit, is not a finite number (N2). One Limit gave all five limit rows; the mode and the toggle
+// and mode hotkeys were no setting.
 std::set<Concept> UntouchedRows(const legacy::Config& l) {
     const legacy::Config d;
     std::set<Concept> u = {Concept::RotationEnabled, Concept::PositionEnabled, Concept::ToggleKey,
@@ -570,7 +570,7 @@ std::set<Concept> UntouchedRows(const legacy::Config& l) {
     row(l.worldSpaceYaw == d.worldSpaceYaw, {Concept::WorldSpaceYaw});
     row(l.localSmoothing == d.localSmoothing, {Concept::LocalSmoothing});
     row(l.remoteSmoothing == d.remoteSmoothing, {Concept::RemoteSmoothing});
-    row(l.positionLimit == d.positionLimit, {Concept::PositionLimitX, Concept::PositionLimitY, Concept::PositionLimitYDown,
+    row(l.positionLimit == d.positionLimit || !std::isfinite(l.positionLimit), {Concept::PositionLimitX, Concept::PositionLimitY, Concept::PositionLimitYDown,
                                              Concept::PositionLimitZ, Concept::PositionLimitZBack});
     row(l.yawModeKey == d.yawModeKey, {Concept::YawModeKey});
     return u;
@@ -609,7 +609,6 @@ metaphor::Config AlteredDefaults() {
 // Defaults.ini's value on each row the import left to it, the approved changes applied to the
 // rest.
 metaphor::Config Expected(const legacy::Config& l, const std::set<Concept>& follows, const metaphor::Config& defaults) {
-    const metaphor::Config table = MakeConfigTable().defaults();
     metaphor::Config e = defaults;
     const auto keep = [&follows](Concept id) { return follows.count(id) == 0; };
     if (keep(Concept::UdpPort)) e.udp_port = l.port;
@@ -618,13 +617,12 @@ metaphor::Config Expected(const legacy::Config& l, const std::set<Concept>& foll
     if (keep(Concept::LocalSmoothing)) e.local_smoothing = l.localSmoothing;
     if (keep(Concept::RemoteSmoothing)) e.remote_smoothing = l.remoteSmoothing;
     if (keep(Concept::PositionLimitX)) {
-        const bool finite = std::isfinite(l.positionLimit);
-        const float limit = l.positionLimit / metaphor::kPositionGain;
-        e.position.limit_x = finite ? limit : table.position.limit_x;
-        e.position.limit_y = finite ? limit : table.position.limit_y;
-        e.position.limit_y_down = finite ? limit : table.position.limit_y_down;
-        e.position.limit_z = finite ? limit : table.position.limit_z;
-        e.position.limit_z_back = finite ? limit : table.position.limit_z_back;
+        const float limit = std::clamp(l.positionLimit, kLimitMin, kLimitMax) / metaphor::kPositionGain;
+        e.position.limit_x = limit;
+        e.position.limit_y = limit;
+        e.position.limit_y_down = limit;
+        e.position.limit_z = limit;
+        e.position.limit_z_back = limit;
     }
     if (keep(Concept::YawModeKey)) {
         const std::string code = ModifierKey(l.yawModeKey) ? "" : cfg::LegacyVirtualKeyToBindings(l.yawModeKey);
@@ -680,17 +678,11 @@ std::vector<std::string> HotkeyDifferences(const legacy::Config& l, const metaph
     return d;
 }
 
-bool Unrepresentable(const legacy::Config& l) {
-    const legacy::Config d;
-    if (!std::isfinite(l.positionLimit) || l.positionLimit == d.positionLimit) return false;
-    const float limit = l.positionLimit / metaphor::kPositionGain;
-    return limit < 0.0f || limit > 10.0f;
-}
-
 // Every pose-shaping value the frozen reader read is listed in its place, folded where it holds
 // what the dev build shipped and dropped as PoseShaping where it does not; a non-finite Limit is
-// dropped as NonFiniteNumber; a yaw mode code on a modifier key as ModifierKey; and nothing is
-// dropped by any other rule.
+// dropped as NonFiniteNumber; a finite Limit other than the shipped 1000 outside 0 to 50 as
+// NumberOutOfRange; a yaw mode code on a modifier key as ModifierKey; and nothing is dropped by any
+// other rule.
 void CheckDrops(const std::string& name, const legacy::Config& l, const ImportResult& imported, Tally& tally) {
     const legacy::Config shipped;
     struct Read {
@@ -733,12 +725,19 @@ void CheckDrops(const std::string& name, const legacy::Config& l, const ImportRe
     Check(nonFinite == !std::isfinite(l.positionLimit), name + ": [Position] Limit dropped as non-finite does not match its value");
     if (nonFinite) ++tally.with_non_finite_dropped;
 
+    const DroppedValue* clamped = FindDrop(imported.dropped, DropRule::NumberOutOfRange, "Position", "Limit");
+    const bool outOfRange = std::isfinite(l.positionLimit) && !(l.positionLimit == shipped.positionLimit) &&
+                            (l.positionLimit < kLimitMin || l.positionLimit > kLimitMax);
+    Check((clamped != nullptr) == outOfRange, name + ": [Position] Limit clamped does not match its value");
+    if (clamped) ++tally.with_out_of_range_clamped;
+
     const bool modifier = FindDrop(imported.dropped, DropRule::ModifierKey, "Hotkeys", "YawModeKey") != nullptr;
     Check(modifier == ModifierKey(l.yawModeKey), name + ": [Hotkeys] YawModeKey dropped as a modifier key does not match its code");
     if (modifier) ++tally.with_modifier_key_dropped;
 
     for (const DroppedValue& d : imported.dropped) {
-        Check(d.rule == DropRule::PoseShaping || d.rule == DropRule::NonFiniteNumber || d.rule == DropRule::ModifierKey,
+        Check(d.rule == DropRule::PoseShaping || d.rule == DropRule::NonFiniteNumber ||
+                  d.rule == DropRule::NumberOutOfRange || d.rule == DropRule::ModifierKey,
               name + ": the import drops [" + d.section + "] " + d.key + " by a rule this map never applies");
     }
 }
@@ -803,16 +802,6 @@ void Comparison2(Scratch& scratch, const Input& input, const ImportRun& import, 
             for (std::string& h : HotkeyDifferences(import.config, loaded.config, tally)) d.push_back(std::move(h));
         }
         Check(d.empty(), name + ": comparison 2: " + Join(d));
-    }
-
-    if (Unrepresentable(import.config)) {
-        ++run.deferred;
-        Check(loaded.status == ConfigLoadStatus::Deferred,
-              name + ": " + kUnrepresentable + ", but the load is " + cfg::ConfigLoadStatusName(loaded.status));
-        Check(after == Listing{{kFileName, *input.bytes}}, name + ": a deferred import created CameraUnlock.ini or another file");
-        Check(loaded.reason.find("cannot be converted") != std::string::npos,
-              name + ": the player is not told which value stops the import: " + loaded.reason);
-        return;
     }
 
     ++run.imported;
@@ -924,6 +913,10 @@ std::vector<Input> Inputs() {
     for (const char* line : {"LocalSmoothing=nan", "RemoteSmoothing=inf"}) {
         inputs.push_back({std::string("non-finite: ") + line, std::string("[Smoothing]\r\n") + line + "\r\n"});
     }
+    // A finite Limit outside 0 to 50, clamped (N4), and the ends of that range, which are not.
+    for (const char* line : {"Limit=60", "Limit=-5", "Limit=50", "Limit=0"}) {
+        inputs.push_back({std::string("limit: ") + line, std::string("[Position]\r\n") + line + "\r\n"});
+    }
     for (auto& m : GenerateIniMutations(g_firstRun, legacy::ReadKeys(), MutationKeys())) {
         inputs.push_back({std::string("corpus over ") + kFirstRun + ": " + m.name, std::move(m.bytes)});
     }
@@ -994,24 +987,24 @@ int main() {
         for (const auto& [over, run] : {std::pair<const char*, const Tally::Run*>{"at the built-in values", &tally.builtin},
                                         std::pair<const char*, const Tally::Run*>{"changed", &tally.altered}}) {
             std::printf("  over Defaults.ini %s: %d created, %d imported (%d holding a default row, %d differing from "
-                        "the committed file), %d deferred\n",
-                        over, run->created, run->imported, run->with_default_rows, run->with_values, run->deferred);
-            Check(run->deferred > 0, std::string("no input is deferred over ") + over);
+                        "the committed file)\n",
+                        over, run->created, run->imported, run->with_default_rows, run->with_values);
             Check(run->with_default_rows > 0, std::string("no import writes default over ") + over);
             Check(run->with_values > 0, std::string("no import writes a value over ") + over);
         }
         std::printf("  %d with a changed sensitivity, inversion or scale dropped (pose_shaping)\n",
                     tally.with_pose_shaping_dropped);
-        std::printf("  %d with a non-finite Limit imported as the limit rows' defaults (N2)\n", tally.with_non_finite_dropped);
+        std::printf("  %d with a non-finite Limit left to Defaults.ini (N2)\n", tally.with_non_finite_dropped);
+        std::printf("  %d with a Limit outside 0 to 50 clamped (N4)\n", tally.with_out_of_range_clamped);
         std::printf("  %d with a yaw mode hotkey on a Ctrl, Shift or Alt key alone imported as unbound (N3)\n",
                     tally.with_modifier_key_dropped);
         std::printf("  %d inputs changed a row from the dev build's default, %d of them the Limit\n", tally.touched,
                     tally.limit_touched);
         std::printf("  %d loads whose hotkeys differ from the dev build: %s\n", tally.with_hotkey_rule_difference,
                     kFleetHotkeyRule);
-        std::printf("  deferred: %s\n", kUnrepresentable);
         Check(tally.with_pose_shaping_dropped > 0, "no input drops a changed pose-shaping value");
         Check(tally.with_non_finite_dropped > 0, "no input drops a non-finite Limit");
+        Check(tally.with_out_of_range_clamped > 0, "no input clamps a Limit outside 0 to 50");
         Check(tally.with_modifier_key_dropped > 0, "no input drops a hotkey on a modifier key");
         Check(tally.touched > 0 && tally.limit_touched > 0,
               "no input changes a row, the Limit among them, which then does not follow Defaults.ini");
