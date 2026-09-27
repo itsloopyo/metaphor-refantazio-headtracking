@@ -2,18 +2,10 @@
 
 ![Metaphor: ReFantazio running with this mod](https://raw.githubusercontent.com/itsloopyo/metaphor-refantazio-headtracking/main/assets/readme-clip.gif)
 
-An unofficial head tracking mod for Metaphor: ReFantazio that moves the camera with your head while your mouse or controller keeps control of movement, driven by OpenTrack over UDP, with no VR headset required.
-
-> [!CAUTION]
-> ## Experimental prototype - expect missing core features
->
-> This is **not** a finished mod.
->
-> Current builds may only test whether head tracking can drive the camera. Bug fixes and core features like decoupled look/aim, independent reticle behavior, correct shot direction, off-screen reticle support, movement handling, and comfort tuning may be missing at this early stage of development.
+An unofficial head tracking mod for Metaphor: ReFantazio that moves the camera with your head while your mouse or controller keeps control of movement, driven by a webcam, phone, or any OpenTrack compatible tracker, with no VR headset required.
 
 ## Features
 
-- **Decoupled look and aim** - head movement turns the view while the mouse and controller keep driving the game's own camera.
 - **6DOF positional tracking** - lean and peek by moving your head in space, not just rotating it.
 - **Works with any OpenTrack compatible tracker** - free options available for PC, iOS and Android
 
@@ -27,7 +19,7 @@ An unofficial head tracking mod for Metaphor: ReFantazio that moves the camera w
 
 ### Lopari
 
-Once this mod is available in Lopari, download [Lopari](https://lopari.app), choose **Metaphor: ReFantazio**, and click
+Download [Lopari](https://lopari.app), choose **Metaphor: ReFantazio**, and click
 **Play with head tracking**.
 
 ### Standalone Installer
