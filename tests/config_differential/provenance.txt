@@ -1,0 +1,35 @@
+# What the config differential test compiles, and where each file came from.
+# scripts/run-tests.ps1 fails when a listed file no longer has its hash.
+#
+# Newest published build: the dev pre-release, 0.0.0-nightly.20260820.4bca980 (tag dev, commit
+# 4bca980), pinned to cameraunlock-core 3465659. No v* release was published. That build shipped
+# no config in its installer or Nexus ZIPs and seeded none through launcher-manifest.json; on a
+# start with no MetaphorHeadTracking.ini it wrote its default file (WriteDefaultIni) and read it back.
+#
+# Oracle: lines 51-210 of 'git show dev:src/MetaphorHeadTracking/mod.cpp' (the key codes, Config,
+# WriteDefaultIni, WarnRetiredSmoothingKey and LoadConfig) and copies of cameraunlock-core
+# 'git show 3465659:cpp/<path>'. The oracle's hotkey registration is transcribed in
+# oracle_hotkeys_adapter.cpp from dev:src/MetaphorHeadTracking/mod.cpp's SetupHotkeys, and its
+# CameraMode in oracle_config_adapter.cpp from dev:src/MetaphorHeadTracking/camera_hook.h.
+348646c1dc6b7c9051696210a5a91c4b677f2e9613d378767131ac272c38c3c2  tests/config_differential/oracle/src/mod_config_excerpt.inc  dev:src/MetaphorHeadTracking/mod.cpp lines 51-210
+a7ffb44210ff59672fa97e8e5feaa2cb3e81938fcc0334a384c68bc371b3857a  tests/config_differential/oracle/core/include/cameraunlock/config/ini_reader.h  core 3465659:cpp/include/cameraunlock/config/ini_reader.h
+7cdb1ad02461e4cf37d3f2e2f9eedde12a9ed3238a61f8906302596589d2f629  tests/config_differential/oracle/core/include/cameraunlock/data/tracking_pose.h  core 3465659:cpp/include/cameraunlock/data/tracking_pose.h
+de519d9b49c949353c550b9dda347380cbbf131f6768378f8a9f5fd97678fea8  tests/config_differential/oracle/core/include/cameraunlock/input/chord_hotkeys.h  core 3465659:cpp/include/cameraunlock/input/chord_hotkeys.h
+43bdd2ef8554c78e5f440333463750c13b95110fe672b0b6e273244df9e7d169  tests/config_differential/oracle/core/include/cameraunlock/logging/file_log.h  core 3465659:cpp/include/cameraunlock/logging/file_log.h
+e01515c2656aaf533bae4350dc45b702c3e3d4043935743dcc9bd5ea581fbe1c  tests/config_differential/oracle/core/src/config/ini_reader.cpp  core 3465659:cpp/src/config/ini_reader.cpp
+73c53c2baa06bbfebe8211f62678aa2b60cb95f604743d3686951ba56b87ea47  tests/config_differential/oracle/core/src/logging/file_log.cpp  core 3465659:cpp/src/logging/file_log.cpp
+#
+# The file the dev build wrote on its first start: the literals of dev:src/MetaphorHeadTracking/mod.cpp's
+# WriteDefaultIni through a text-mode std::ofstream, so CRLF. The test holds the oracle's own
+# first start to these bytes.
+72f870264eeba25b7ccd0464b040eb123db8abc01e0f63b0eb543e43f5eae43b  tests/config_differential/data/first-run-4bca980.ini  dev WriteDefaultIni
+#
+# The frozen import. Never edited once the conversion landed.
+54223b37d995a36df4f3f4223baa8bd0e12fa96b1e83e7436e8635b1d7cea506  src/MetaphorHeadTracking/legacy_config/legacy_config.h  frozen import
+f0a29a25288f3cc08077da86b92a14c6966201f0b9faddb72a7f35107d842891  src/MetaphorHeadTracking/legacy_config/legacy_config.cpp  frozen import
+#
+# The core sources the import compiles. IniReader is frozen in core and its two files equal
+# 3465659's, so the import reads a file with the helpers the dev build had. file_log is the log the
+# reader writes to, which decides no value.
+a7ffb44210ff59672fa97e8e5feaa2cb3e81938fcc0334a384c68bc371b3857a  cameraunlock-core/cpp/include/cameraunlock/config/ini_reader.h  core 3465659:cpp/include/cameraunlock/config/ini_reader.h
+e01515c2656aaf533bae4350dc45b702c3e3d4043935743dcc9bd5ea581fbe1c  cameraunlock-core/cpp/src/config/ini_reader.cpp  core 3465659:cpp/src/config/ini_reader.cpp

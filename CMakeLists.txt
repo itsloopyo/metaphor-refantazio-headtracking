@@ -28,6 +28,7 @@ add_library(MetaphorHeadTracking SHARED
     src/MetaphorHeadTracking/present_hook.cpp
     src/MetaphorHeadTracking/camera_hook.cpp
     src/MetaphorHeadTracking/build_profiles.cpp
+    src/MetaphorHeadTracking/legacy_config/legacy_config.cpp
 )
 
 target_include_directories(MetaphorHeadTracking PRIVATE
@@ -74,4 +75,49 @@ if(METAPHOR_BUILD_TESTS)
     )
     target_link_libraries(position_limits_tests PRIVATE cameraunlock)
     add_test(NAME position_limits_tests COMMAND position_limits_tests)
+
+    # The config differential test. The oracle is the dev pre-release's reader with the core
+    # sources it compiled, copied verbatim into tests/config_differential/oracle, and that build's
+    # hotkey registration over the chord guards of its pin. It is two libraries, each renaming the
+    # namespaces its own way, so neither collides with the other or with the current core.
+    set(METAPHOR_ORACLE_DIR ${CMAKE_SOURCE_DIR}/tests/config_differential/oracle)
+    add_library(metaphor_config_oracle STATIC
+        ${METAPHOR_ORACLE_DIR}/core/src/config/ini_reader.cpp
+        ${METAPHOR_ORACLE_DIR}/core/src/logging/file_log.cpp
+        tests/config_differential/oracle_config_adapter.cpp
+    )
+    target_include_directories(metaphor_config_oracle PRIVATE
+        ${METAPHOR_ORACLE_DIR}/src
+        ${METAPHOR_ORACLE_DIR}/core/include
+        ${CMAKE_SOURCE_DIR}/tests/config_differential)
+    target_compile_definitions(metaphor_config_oracle PRIVATE
+        cameraunlock=mrf_oracle_core
+        metaphor=mrf_oracle)
+
+    add_library(metaphor_hotkeys_oracle STATIC
+        tests/config_differential/oracle_hotkeys_adapter.cpp
+    )
+    target_include_directories(metaphor_hotkeys_oracle PRIVATE
+        ${CMAKE_SOURCE_DIR}/tests/config_differential/oracle_fake
+        ${METAPHOR_ORACLE_DIR}/core/include
+        ${CMAKE_SOURCE_DIR}/tests/config_differential)
+    target_compile_definitions(metaphor_hotkeys_oracle PRIVATE
+        cameraunlock=mrf_oracle_hk_core)
+
+    add_executable(config_differential_tests
+        tests/config_differential/differential_tests.cpp
+        src/MetaphorHeadTracking/legacy_config/legacy_config.cpp
+    )
+    target_include_directories(config_differential_tests PRIVATE
+        src/MetaphorHeadTracking
+        cameraunlock-core/cpp/include
+        tests/config_differential)
+    target_compile_definitions(config_differential_tests PRIVATE
+        METAPHOR_DIFFERENTIAL_DATA="${CMAKE_SOURCE_DIR}/tests/config_differential/data")
+    target_link_libraries(config_differential_tests PRIVATE
+        cameraunlock metaphor_config_oracle metaphor_hotkeys_oracle)
+    if(MSVC)
+        target_compile_options(config_differential_tests PRIVATE /W4 /permissive-)
+    endif()
+    add_test(NAME config_differential_tests COMMAND config_differential_tests)
 endif()
