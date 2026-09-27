@@ -12,5 +12,12 @@
     { "source": "plugins/MetaphorHeadTracking.asi", "target": "MetaphorHeadTracking.asi" }
   ],
   "runtime_requirements": [],
-  "dependencies": []
+  "dependencies": [],
+  "config": {
+    "path": "CameraUnlock.ini",
+    "anchor": "game_root",
+    "legacy_source": "MetaphorHeadTracking.ini",
+    "canonical_since": "0.0.1",
+    "per_game": {}
+  }
 }
