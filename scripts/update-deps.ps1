@@ -11,6 +11,24 @@
 #>
 $ErrorActionPreference = 'Stop'
 
+# Not Get-FileHash: Windows PowerShell 5.1 autoloads it from a script module,
+# and a powershell.exe started from pwsh (GitHub Actions' shell: pwsh)
+# inherits pwsh's PSModulePath, resolves the Core-only
+# Microsoft.PowerShell.Utility first and reports the cmdlet as not recognized.
+function Get-Sha256Hex {
+    [OutputType([string])]
+    param([Parameter(Mandatory)][string]$LiteralPath)
+
+    $sha    = [System.Security.Cryptography.SHA256]::Create()
+    $stream = [System.IO.File]::OpenRead((Convert-Path -LiteralPath $LiteralPath))
+    try {
+        return [BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-', '').ToLowerInvariant()
+    } finally {
+        $stream.Dispose()
+        $sha.Dispose()
+    }
+}
+
 $projectDir = Resolve-Path (Join-Path $PSScriptRoot '..')
 $vendorDir = Join-Path $projectDir 'vendor\ultimate-asi-loader'
 
@@ -49,7 +67,7 @@ try {
 
 Remove-Item -LiteralPath $zipPath -Force
 
-$hash = (Get-FileHash -LiteralPath $dllPath -Algorithm SHA256).Hash
+$hash = Get-Sha256Hex -LiteralPath $dllPath
 Write-Host "Vendored dinput8.dll updated." -ForegroundColor Green
 Write-Host "  $dllPath"
 Write-Host "  SHA-256: $hash"
