@@ -90,6 +90,18 @@ if (Test-GitTagExists -Tag $tag) {
 
 Write-Host "Releasing $currentVersion -> $newVersion (tag $tag)" -ForegroundColor Cyan
 
+Write-Host "Running the full test suite..." -ForegroundColor Cyan
+Push-Location $ProjectRoot
+try {
+    pixi run test
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Error: pixi run test failed. Nothing was changed." -ForegroundColor Red
+        exit 1
+    }
+} finally {
+    Pop-Location
+}
+
 # 3. Update the canonical version source + the derived copies.
 # mod_info.version is the only version key here, and Update-ManifestVersion
 # only reaches a top-level one. UTF-8 without a BOM: PowerShell 5.1's
