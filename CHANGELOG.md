@@ -9,10 +9,6 @@ based on Keep a Changelog, and this project adheres to Semantic Versioning.
 - A setting set to `default` in `CameraUnlock.ini` takes its value from `Defaults.ini`, which every head tracking mod that keeps its settings in `CameraUnlock.ini` reads. Head tracking mods that keep their settings in another file do not read it, and neither do earlier versions of this mod. Writing a value in place of `default` changes that setting for this game only. When the mod saves a setting that a hotkey changed in game, it writes the new value in place of `default`, so that setting no longer follows `Defaults.ini` in this game until you set it to `default` again.
 - `Defaults.ini` is `%AppData%\CameraUnlock\Defaults.ini` on Windows; `$XDG_CONFIG_HOME/CameraUnlock/Defaults.ini` on Linux, or `~/.config/CameraUnlock/Defaults.ini` where `XDG_CONFIG_HOME` is not set, under Wine and Proton too; and `~/Library/Application Support/CameraUnlock/Defaults.ini` on macOS. The mod's log, where it writes one, names the file it read.
 - When the mod starts and finds no `Defaults.ini`, it creates one holding the built-in values, unless Windows runs the game as a packaged app. The mod never changes `Defaults.ini` after that.
-- One-shot `first tracker pose handed to the camera hook` line in the log,
-  emitted after the pose is applied. Together with the receiver's own
-  `First UDP packet received` line it separates packets never arriving from a
-  pose that reached the camera hook without moving the view.
 
 ### Changed
 - Settings move to `CameraUnlock.ini`, next to `METAPHOR.exe`. Earlier versions of the mod kept these settings in `MetaphorHeadTracking.ini`, in the same folder. The first time this version starts and finds no `CameraUnlock.ini`, it reads your settings from `MetaphorHeadTracking.ini` and writes them into `CameraUnlock.ini`. It never changes `MetaphorHeadTracking.ini`, and does not read it again while `CameraUnlock.ini` exists.
@@ -37,18 +33,6 @@ based on Keep a Changelog, and this project adheres to Semantic Versioning.
   (BSD-2-Clause, including the separate Hacker Disassembler Engine copyright)
   and cameraunlock-core (MIT). Naming a licence is not reproducing it, and both
   of those require the notice and disclaimer to travel with the binary.
-- Removed recentring from the mod, including the `Home` / `Ctrl+Shift+T`
-  hotkey. The tracker app owns the centre, so the mod keeping one of its own put
-  a second centre in series with the tracker's and the two drifted apart. Centre
-  in your tracker app instead (opentrack's Center bind, the CENTER button in
-  Headcam).
-- Replaced `[Smoothing] Factor` with `[Smoothing] LocalSmoothing` (default
-  `0.0`) and `[Smoothing] RemoteSmoothing` (default `0.15`). The mod picks
-  between them per connection from the packet's source address, and each covers
-  rotation and position together.
-- Removed the hidden 0.15 baseline smoothing floor. A tracker running on the
-  same machine now gets zero-latency tracking by default instead of being
-  silently smoothed against the user's setting.
 
 ### Removed
 - The sensitivity, scale and axis inversion settings. Set these in your tracker app instead.
