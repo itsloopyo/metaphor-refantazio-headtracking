@@ -15,7 +15,7 @@ Metaphor: ReFantazio.
 | injector | `f7fd18f` (inside Ultimate ASI Loader v9.7.2) | zlib | Compiled into the vendored dinput8.dll |
 | miniz | 3.0.0 (inside Ultimate ASI Loader v9.7.2) | MIT | Compiled into the vendored dinput8.dll |
 | MinHook | v1.3.4-14-gd94c64d | BSD-2-Clause | Compiled into `MetaphorHeadTracking.asi` |
-| cameraunlock-core | 556aa5de6af7eb8004aa9b8d374086c19b0ab9fc | MIT | Compiled into `MetaphorHeadTracking.asi` |
+| cameraunlock-core | ac271752d8fcf37e793b70744aa8eb12588d91ea | MIT | Compiled into `MetaphorHeadTracking.asi` |
 | OpenTrack | n/a | ISC | Not bundled; UDP protocol interoperability only |
 
 ---
@@ -254,7 +254,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 Git submodule at `cameraunlock-core/`, compiled into `MetaphorHeadTracking.asi`. Our own code,
 MIT licensed, reproduced here so the notices are complete.
 
-- Pinned commit: `556aa5de6af7eb8004aa9b8d374086c19b0ab9fc`
+- Pinned commit: `ac271752d8fcf37e793b70744aa8eb12588d91ea`
 
 ```
 MIT License
